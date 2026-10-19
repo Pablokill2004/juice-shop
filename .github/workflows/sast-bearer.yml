@@ -8,9 +8,9 @@ name: SAST con Bearer CLI                           # Nombre visible del workflo
 
 on:                                                 # Disparadores del pipeline (eventos de ejecución)
   push:                                             # 1) Se ejecuta al hacer 'git push'
-    branches: [ main ]                              #    Unicamente sobre la rama principal 'main'
+    branches: [ master ]                              #    Unicamente sobre la rama principal 'main'
   pull_request:                                     # 2) Se ejecuta al abrir o actualizar un Pull Request
-    branches: [ main ]                              #    Cuyo destino sea la rama 'main'
+    branches: [ master ]                              #    Cuyo destino sea la rama 'main'
   workflow_dispatch:                                # 3) Permite la ejecución manual desde la interfaz de GitHub Actions
 
 permissions:                                        # Permisos mínimos asignados al token de GitHub (principio de menor privilegio)
