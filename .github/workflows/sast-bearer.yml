@@ -1,0 +1,73 @@
+# =====================================================================
+# Pipeline SAST (Static Application Security Testing) con Bearer CLI
+# Aplicación objetivo: OWASP Juice Shop
+# Repositorio: juice-shop-sast
+# =====================================================================
+
+name: SAST con Bearer CLI                           # Nombre visible del workflow en la pestaña Actions de GitHub
+
+on:                                                 # Disparadores del pipeline (eventos de ejecución)
+  push:                                             # 1) Se ejecuta al hacer 'git push'
+    branches: [ main ]                              #    Unicamente sobre la rama principal 'main'
+  pull_request:                                     # 2) Se ejecuta al abrir o actualizar un Pull Request
+    branches: [ main ]                              #    Cuyo destino sea la rama 'main'
+  workflow_dispatch:                                # 3) Permite la ejecución manual desde la interfaz de GitHub Actions
+
+permissions:                                        # Permisos mínimos asignados al token de GitHub (principio de menor privilegio)
+  contents: read                                    # Permite leer el código fuente del repositorio
+  security-events: write                            # Permite publicar alertas en la pestaña 'Security > Code scanning'
+
+jobs:                                               # Bloque de trabajos a ejecutar
+  bearer-sast:                                      # Identificador interno del job
+    name: Análisis SAST con Bearer                  # Nombre visible del trabajo en la interfaz
+    runs-on: ubuntu-latest                          # Utiliza una máquina virtual Linux (Ubuntu) proveída por GitHub
+
+    steps:                                          # Lista secuencial de pasos a ejecutar
+      # -----------------------------------------------------------------
+      # Paso 1: Descargar el código fuente
+      # -----------------------------------------------------------------
+      - name: Descargar el código fuente
+        uses: actions/checkout@v4                  # Acción oficial para clonar el código del repositorio en la máquina virtual
+
+      # -----------------------------------------------------------------
+      # Paso 2: Ejecutar Bearer CLI para generar el reporte SARIF
+      # -----------------------------------------------------------------
+      - name: Ejecutar escaneo SAST (Formato SARIF)
+        uses: bearer/bearer-action@v2               # Acción oficial de Bearer CLI
+        with:
+          format: sarif                             # Genera la salida en formato estandarizado SARIF
+          output: bearer-report.sarif               # Nombre del archivo de salida para los resultados en SARIF
+          exit-code: 0                              # Fuerza retorno 0 para evitar que el job aborte antes de subir los reportes
+          skip-path: 'test/**,frontend/src/tests/**,*.spec.ts,*.test.js' # Excluye archivos de prueba que no son código de producción
+
+      # -----------------------------------------------------------------
+      # Paso 3: Ejecutar Bearer CLI para generar el reporte HTML
+      # -----------------------------------------------------------------
+      - name: Ejecutar escaneo SAST (Formato HTML)
+        if: always()                                # Se ejecuta siempre, independientemente del estado del paso anterior
+        uses: bearer/bearer-action@v2               # Acción oficial de Bearer CLI
+        with:
+          format: html                              # Genera el reporte interactivo y visual en formato HTML
+          output: bearer-report.html                # Nombre del archivo de salida para el reporte HTML
+          exit-code: 0                              # Asegura que la falla por vulnerabilidades no detenga la subida del artefacto
+          skip-path: 'test/**,frontend/src/tests/**,*.spec.ts,*.test.js' # Excluye archivos de prueba
+
+      # -----------------------------------------------------------------
+      # Paso 4: Subir el reporte SARIF a GitHub Code Scanning
+      # -----------------------------------------------------------------
+      - name: Subir resultados SARIF a GitHub Security
+        if: always()                                # Se ejecuta aunque se hayan detectado vulnerabilidades
+        uses: github/codeql-action/upload-sarif@v3  # Acción oficial de GitHub para procesar y desplegar archivos SARIF
+        with:
+          sarif_file: bearer-report.sarif           # Especifica el archivo SARIF a cargar
+          category: bearer-sast                     # Etiqueta para identificar el origen de estas alertas en Code Scanning
+
+      # -----------------------------------------------------------------
+      # Paso 5: Guardar el reporte HTML como artefacto descargable
+      # -----------------------------------------------------------------
+      - name: Guardar reporte HTML como artefacto
+        if: always()                                # Garantiza que el archivo comprimido quede disponible siempre
+        uses: actions/upload-artifact@v4            # Acción oficial para adjuntar archivos a la ejecución del pipeline
+        with:
+          name: reporte-sast-bearer-html            # Nombre del archivo ZIP descargable desde la interfaz del pipeline
+          path: bearer-report.html                  # Ruta del archivo que se va a adjuntar
